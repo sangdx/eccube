@@ -1,0 +1,33 @@
+name: CICD on main
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  build:
+    name: Deploy
+    runs-on: ubuntu-18.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Install ssh key
+        uses: shimataro/ssh-key-action@v2
+        with:
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          known_hosts: ${{ secrets.KNOWN_HOSTS }}
+
+      - name: Setup PHP
+        uses: nanasess/setup-php@master
+        with:
+          php-version: '7.3'
+
+      - name: Install to Composer
+        run: composer install --no-scripts --no-dev --no-interaction --optimize-autoloader
+
+      - name: Deploy with rsync
+        run: |
+          rsync -azP --rsync-path="sudo rsync" --exclude=".git" --exclude=".env" --exclude=".github" --exclude=".devcontainer" -e "ssh -p 43722" --progress . ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/var/www/html/eccube
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} -p 43722 "sudo chown ec2-user:apache -R /var/www/html/eccube"
